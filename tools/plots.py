@@ -6,6 +6,16 @@ from datetime import datetime
 from matplotlib import pyplot as plt, patches as mpatches
 
 class Plots:
+    #https://clauswilke.com/dataviz/color-pitfalls.html
+    default_color_scheme = ['#E69F00',
+                            '#56B4E9',
+                            '#009E73',
+                            "#F0E442",
+                            "#0072B2",
+                            "#D55E00",
+                            "#CC79A7",
+                            "#000000"]
+
     @classmethod
     def save_plt_fig(cls, fig, filename, bbox_extra_artists=None, ext="png", tight=True, include_timestamp=False, dpi=None, save_pickle=True):
         '''Save a plot figure to file with timestamp'''
@@ -98,3 +108,24 @@ class Plots:
                 seen.add(c)
 
         return patches
+
+    @classmethod
+    def multiline_scatter_plot(cls, x, ys, labels, line_labels, output_path, title=None, colours=None, callback=None, legend_title=None):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        colours = colours if colours else cls.default_color_scheme
+        for i, y in enumerate(ys):
+            ax.plot(x, y, color=colours[i], label=line_labels[i])
+
+        ax.set_xlabel(labels[0])
+        ax.set_ylabel(labels[1])
+        ax.tick_params(axis='x', labelrotation=90)
+        lgd = ax.legend(title="Legend" if legend_title is None else legend_title, loc='center left', bbox_to_anchor=(1,0.5))
+
+        if callback is not None:
+            fig, ax, lgd = callback(fig, ax, lgd)
+
+        if title is not None:
+            ttl = fig.suptitle(title)
+
+        cls.save_plt_fig(fig, output_path, bbox_extra_artists=(lgd,), tight=True)

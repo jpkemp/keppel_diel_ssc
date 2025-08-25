@@ -1,19 +1,7 @@
-import cv2
-from functools import reduce
-from tqdm import tqdm
-from datetime import timedelta
-from multiprocessing import Pool
 import matplotlib as mpl
 from matplotlib.cm import tab20
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
-from ugtm import eGTM
-from umap import UMAP
-from .ml import pca_nd
-from .pandas_mask import build_mask
 
 partial_metrics = ['acorr3', 'B', 'lprms', 'lppk']
 
@@ -53,14 +41,6 @@ def three_color_fader(c1, c2, c3, mix=0):
     c2=np.array(mpl.colors.to_rgb(c2))
     c3= np.array(mpl.colors.to_rgb(c3))
     mixed = (1-mix)*c2 + mix*c3 if mix >= 0 else (1+mix)*c2 + (-mix*c1)
-    # if mix == 0:
-    #     mixed = c2
-    # elif mix < 0:
-    #     mix = exp(-mix*order) / exp(order)
-    #     mixed = (1-mix)*c2 + mix*c1
-    # else:
-    #     mix = exp(mix*order) / exp(order)
-    #     mixed = (1-mix)*c2 + mix*c3
 
     return mpl.colors.to_hex(mixed)
 
@@ -121,7 +101,6 @@ def colour_plots(data:pd.DataFrame, band:str, plot_data:list[tuple],
                 cbars = None
 
             plotter.scatter_plot(data_to_plot[:, 0], data_to_plot[:, 1], labels, f"{band}_{group_name}_{plot_nam}",
-                # self.plots.scatter_plot(data_to_plot.iloc[:,0], data_to_plot.iloc[:,1], ("Dim 0", "Dim 1"), f"{band}_{group_name}_{plot_nam}",
                 f"SSC {plot_nam} for {band} coloured by {group_name}", color=colors,
                 legend=unique_vals, partial_legend_colours=lgd_colors, colbar=cbars, alpha=0.5)
 
