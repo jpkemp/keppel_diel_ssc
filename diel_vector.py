@@ -1,16 +1,10 @@
 import re
 from collections import Counter
-from dataclasses import dataclass
 from functools import partial
-from itertools import permutations
-from overrides import overrides
-import matplotlib.pyplot as plt
 import pandas as pd
-import pygraphviz as pgv
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.metrics import f1_score
 from sklearn.tree import DecisionTreeClassifier, export_text
-from tools.process_dataframe import partial_metrics, soundscape_sites, benthic_site_map, blue_fader
+from tools.process_dataframe import partial_metrics, soundscape_sites
 from tools.ml import pca_nd
 from matplotlib.cm import tab20
 from tools.plots import Plots
@@ -24,7 +18,7 @@ def set_x_markers(scale, fig, ax, lgd=None):
 
     return fig, ax, lgd
 
-def get_metric_results(site_data, metrics, fltr, site, xcallback, scale):
+def plot_day_percentiles(site_data, metrics, fltr, site, xcallback, scale):
     grouping_var = 'scaled_group'
     site_data = site_data.sort_values(grouping_var)
     group = site_data.groupby(grouping_var)
@@ -52,7 +46,7 @@ def get_metric_results(site_data, metrics, fltr, site, xcallback, scale):
         Plots.multiline_scatter_plot(x, list(metric_results.values()), ("Hours from closest transition", metric),
             percentiles, f"{fltr}_{metric}_{site}", "", callback=callback, legend_title="Percentiles")
 
-def get_daily_metrics(self, data, metrics):
+def get_daily_metrics(data, metrics):
     daily_metrics = {metric: [] for metric in metrics}
     labels = {metric: [] for metric in metrics}
     data["day"] = data["datetime"].dt.floor('d')
@@ -114,9 +108,11 @@ def pca_plot(data, labels, name):
     colors = pd.Series([tab20(float(x)/nunique) for x in cat_codes])
     cbars = None
     full_labels = [soundscape_sites[x] for x in labels]
-    Plots.scatter_plot(pca[0], pca[1], ("PCA Dim 0", "PCA Dim 1"), f"pca_{name}", legend=full_labels, color=colors, colbar=cbars)
+    fig = Plots.scatter_plot(pca[0], pca[1], ("PCA Dim 0", "PCA Dim 1"), f"pca_{name}", legend=full_labels, color=colors, colbar=cbars)
 
-def write_all_rules(rules):
+    return fig
+
+def write_rule_location_counts(rules):
     fname = f"data/n_rules.csv"
     with open(fname, 'w+') as f:
         cols = 'Dataset,Band,Metric,Rules,Locations\n'
@@ -126,7 +122,7 @@ def write_all_rules(rules):
             ln = f"{formatted_name},{n_rules},{n_locations}\n"
             f.write(ln)
 
-def write_counts_data(typ, counts):
+def write_metric_rule_counts(typ, counts):
     fname = f"data/{typ}_counts.csv"
     usable = [x for x in counts if "combined" in x[0]]
     columns = sorted(partial_metrics + ['D']) if typ == "index" else [str(x) for x in range(20)]
@@ -138,54 +134,20 @@ def write_counts_data(typ, counts):
             ln = f"{model},{formatted_vals}\n"
             f.write(ln)
 
-def process_sscodes(sscodes, n_day_groups):
-    test_proportion:float = 0.3
-    x_callback = set_x_markers
-    n_rules_data =[]
-    index_counts_data = []
-    time_counts_data = []
-    for fltr, data in sscodes.items():
-        for metric in partial_metrics:
-            data[metric] = data[metric].astype(float)
+def create_decision_trees(splitter, daily_metrics):
+    pass
 
-        data['D'] = data['D'].astype(float)
-        data["scaled_group"] = data["scaled_day"].apply(lambda x: int(n_day_groups*x/25))
-        ranges = {x: None for x in partial_metrics + ['D']}
-        for site, site_data in data.groupby('soundtrap'):
-            get_metric_results(site_data, partial_metrics, fltr, site, x_callback, ranges)
-            par_data = site_data.dropna()
-            get_metric_results(par_data, ['D'], fltr, site, x_callback, ranges)
+def get_site_metrics(data, fltr, x_callback, axis_ranges):
+    for site, site_data in data.groupby('soundtrap'):
+        plot_day_percentiles(site_data, partial_metrics, fltr, site, x_callback, axis_ranges)
+        par_data = site_data.dropna()
+        plot_day_percentiles(par_data, ['D'], fltr, site, x_callback, axis_ranges)
 
-        daily_metrics, labels = get_daily_metrics(data, partial_metrics)
-        partial_data = data[~data['D'].isna()]
-        d_metrics, d_labels = get_daily_metrics(partial_data, ['D'])
-        daily_metrics['D'] = d_metrics['D']
-        labels['D'] = d_labels['D']
-        splitter = StratifiedShuffleSplit(test_size=test_proportion, n_splits=1)
-        accs = []
-        for metric, metric_values in daily_metrics.items():
-            f1s, n_rules, counts, tcounts = assess_df(metric_values, labels[metric], splitter, f"{fltr}_{metric}")
-            accs.append(f1s)
-            n_rules_data.append(n_rules)
-            metric_output_name = f"{fltr}_{metric}"
-            index_counts_data.append((metric_output_name, counts))
-            time_counts_data.append((metric_output_name, tcounts))
-            self.log(f"F1 scores for {data_name} {metric} in {fltr}: {f1s}")
-            pca_plot(daily_metrics[metric], labels[metric], metric_output_name)
+def get_dailies_for_all_metrics(data):
+    daily_metrics, labels = get_daily_metrics(data, partial_metrics)
+    partial_data = data[~data['D'].isna()]
+    d_metrics, d_labels = get_daily_metrics(partial_data, ['D'])
+    daily_metrics['D'] = d_metrics['D']
+    labels['D'] = d_labels['D']
 
-        order = ['F1 micro', 'F1 macro', 'F1 weighted', 'Accuracy']
-        combined_metrics = pd.concat(daily_metrics.values(), axis=1)
-        pca_plot(combined_metrics, labels["lprms"], f"{fltr}_combined")
-        pca_plot(combined_metrics, labels["lprms"], f"{fltr}_algae_combined", False)
-        f1s, n_rules, counts, tcounts = assess_df(combined_metrics, labels['lprms'], splitter, f"{fltr}_combined")
-        accs.append(f1s)
-        n_rules_data.append(n_rules)
-        index_counts_data.append((f"{fltr}_combined", counts))
-        time_counts_data.append((f"{fltr}_combined", tcounts))
-        tests = list(daily_metrics.keys()) + ["Combined"]
-        for i, v in enumerate(list(zip(*accs))):
-            Plots.categorical_bar_plot(tests, v, "", f"result_{fltr}_{order[i].replace(' ', '_')}_plot_gap", ("Metric", "F1 Score"), y_limits=(0, 1))
-
-    write_all_rules(n_rules_data)
-    for typ, counts_data in [("index", index_counts_data), ("time", time_counts_data)]:
-        write_counts_data(typ, counts_data)
+    return daily_metrics, labels

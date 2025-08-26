@@ -128,4 +128,25 @@ class Plots:
         if title is not None:
             ttl = fig.suptitle(title)
 
-        cls.save_plt_fig(fig, output_path, bbox_extra_artists=(lgd,), tight=True)
+        cls.save_plt_fig(fig, output_path, bbox_extra_artists=(lgd,), tight=True, save_pickle=False)
+
+    @classmethod
+    def categorical_bar_plot(cls, x, y, title, filename, axis_labels=None, y_limits=None):
+        '''creates a categorical bar plot'''
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        assert len(x) == len(y)
+        ax.bar(x, y)
+        ax.tick_params(axis='x', labelrotation=45)
+        if y_limits is not None:
+            ax.set_ylim(y_limits)
+
+        lgd = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ttl = fig.suptitle(title)
+        if axis_labels is not None:
+            ax.set_xlabel(axis_labels[0])
+            ax.set_ylabel(axis_labels[1])
+
+        cls.save_plt_fig(fig, filename, (lgd, ttl, ), save_pickle=False)
+
+        return fig

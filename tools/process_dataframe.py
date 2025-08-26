@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 
 partial_metrics = ['acorr3', 'B', 'lprms', 'lppk']
+full_metrics = partial_metrics + ['D']
 
 soundscape_sites = {
     5072: 'Mazie 5072',
