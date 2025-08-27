@@ -4,7 +4,7 @@ from functools import partial
 import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.tree import DecisionTreeClassifier, export_text
-from tools.process_dataframe import partial_metrics, soundscape_sites
+from tools.definitions import partial_metrics, soundscape_sites, benthic_site_map
 from tools.ml import pca_nd
 from matplotlib.cm import tab20
 from tools.plots import Plots
@@ -45,6 +45,22 @@ def plot_day_percentiles(site_data, metrics, fltr, site, xcallback, scale):
 
         Plots.multiline_scatter_plot(x, list(metric_results.values()), ("Hours from closest transition", metric),
             percentiles, f"{fltr}_{metric}_{site}", "", callback=callback, legend_title="Percentiles")
+
+def get_habitat_cover():
+    col = "point_human_group_code"
+    raw_benthic = pd.read_excel('data/benthic_wcp.xlsx')
+    groups = raw_benthic.groupby(['site_name', 'survey_title'])
+    df = groups[col].value_counts(normalize=True).reset_index()
+    date_map = {"Feb": "02", "Nov": "11", "Oct": "10", "Tiles": '02', 'Hydrophone': '10', 'February': "02", "October": "10", "November": "11"}
+    df["month"] = df["survey_title"].apply(lambda x: date_map[x.split(' ')[0]])
+    df = df.pivot_table('proportion', ['site_name', 'month'], col).reset_index().fillna(0)
+    df = df[df["month"] == "02"]
+    habitat_pca, _, _ = pca_nd(df.drop(['site_name', 'month'], axis=1), 1)
+    habitat = pd.Series(habitat_pca.squeeze())
+    habitat.index = df["site_name"].apply(lambda x: benthic_site_map[x])
+    habitat.name = "algae_cover"
+
+    return habitat
 
 def get_daily_metrics(data, metrics):
     daily_metrics = {metric: [] for metric in metrics}
@@ -99,7 +115,7 @@ def write_rules(rules, name):
     with open(path, 'w') as f:
         f.write(rules)
 
-def pca_plot(data, labels, name):
+def pca_plot(data, labels, name, color_by_site=True):
     normalized_df=(data - data.min()) / (data.max() - data.min()).astype(float)
     pca, weights, variance = pca_nd(normalized_df, 2)
     print(f"Variance for {name}: {variance}")
@@ -109,8 +125,19 @@ def pca_plot(data, labels, name):
     group_vals = labels.astype("category")
     cat_codes = group_vals.cat.codes
     nunique = group_vals.nunique()
-    colors = pd.Series([tab20(float(x)/nunique) for x in cat_codes])
-    cbars = None
+    if color_by_site:
+        colors = pd.Series([tab20(float(x)/nunique) for x in cat_codes])
+        cbars = None
+    else:
+        habitat = get_habitat_cover()
+        assert min(habitat) >= -1 and min(habitat) < 0 and max(habitat) > 0 and max(habitat) <= 1
+        colors = labels.apply(lambda x: Plots.blue_fader(habitat[soundscape_sites[x]]))
+        col_example_mixes = [0.05 * x for x in range(-20, 21)]
+        index_vals = [x / 2 + 0.5 for x in col_example_mixes]
+        cbars = []
+        examples = [(index_vals[i], Plots.blue_fader(x)) for i, x in enumerate(col_example_mixes)]
+        cbars.append(tuple([habitat, examples, "Habitat PCA value"]))
+
     full_labels = [soundscape_sites[x] for x in labels]
     fig = Plots.scatter_plot(pca[0], pca[1], ("PCA Dim 0", "PCA Dim 1"), f"pca_{name}", legend=full_labels, color=colors, colbar=cbars)
 

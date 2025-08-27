@@ -2,7 +2,7 @@ from multiprocessing import Pool
 from matplotlib.cm import tab20
 import pandas as pd
 from tools.ml import pca_nd
-from tools.process_dataframe import soundscape_sites
+from tools.definitions import soundscape_sites
 from tools.plots import Plots
 
 def dimension_reduction(data:pd.DataFrame, band:str):
