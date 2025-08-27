@@ -150,3 +150,35 @@ class Plots:
         cls.save_plt_fig(fig, filename, (lgd, ttl, ), save_pickle=False)
 
         return fig
+
+    @classmethod
+    def basic_histogram(cls, data, filename, n_bins="unique_values", title=None, xlabel="Count", ylabel="Frequency"):
+        '''creates and saves a histogram'''
+        if n_bins == "unique_values":
+            n_bins = len(set(data))
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.hist(data, n_bins, edgecolor='black', linewidth=1.2)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        if title is not None:
+            ttl = fig.suptitle(title)
+
+        cls.save_plt_fig(fig, filename)
+
+    @classmethod
+    def create_boxplot_group(cls, data, labels, title, filename, axis_labels=None, show_outliers=True, figsize=(6.4, 4.8), ext="png"):
+        '''creates and saves a group of boxplots'''
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.boxplot(data, showfliers=show_outliers)
+        fig.suptitle(title)
+        ax.set_xticklabels(labels, rotation=45, ha='right')
+        if axis_labels is not None:
+            ax.set_xlabel(axis_labels[0])
+            ax.set_ylabel(axis_labels[1])
+
+        cls.save_plt_fig(fig, filename, ext=ext, tight=True)
+
+        return fig

@@ -2,3 +2,5 @@ data/
 *.pyc
 *.pkl
 *.png
+*.rda
+*.csv
