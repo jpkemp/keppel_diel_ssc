@@ -1,4 +1,3 @@
-'''Template for data analyses'''
 from datetime import timedelta, datetime
 from zoneinfo import ZoneInfo
 import pickle

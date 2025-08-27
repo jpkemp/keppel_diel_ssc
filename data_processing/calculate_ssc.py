@@ -1,4 +1,3 @@
-'''Template for data analyses'''
 from datetime import datetime, timedelta
 from pathlib import Path
 from multiprocessing import Pool
