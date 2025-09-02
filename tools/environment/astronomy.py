@@ -7,12 +7,6 @@ import skyfield.api as sf
 from skyfield import almanac
 from skyfield.timelib import Time
 
-class Phases(Enum):
-    New = 0
-    First = 90
-    Full = 180
-    Last = 270
-
 class SunTransitions(Enum):
     Sunset = 'sunset'
     Sunrise = 'sunrise'
@@ -23,23 +17,8 @@ class Astronomy:
         self.ts = sf.load.timescale()
         self.eph = sf.load('de421.bsp')
 
-    @classmethod
-    def get_closest_moon_phase(cls, deg):
-        if deg < 0 or deg >= 360:
-            raise ValueError("Degrees must be between 0 and 360")
-
-        check_vals = [x.value for x in Phases] + [360]
-        dists = []
-        for val in check_vals:
-            dists.append(abs(val - deg))
-
-        closest_idx = min(range(len(dists)), key=dists.__getitem__)
-        deg = check_vals[closest_idx]
-        if deg == 360: deg = 0
-
-        return Phases(deg)
-
-    def moon_phase_at_date(self, datetime_obj):
+    def moon_phase_at_date(self, datetime_obj:pd.Series):
+        '''Retreives the angle of the moon relative to self.eph at a given datetime or series of datetimes'''
         if hasattr(datetime_obj, '__iter__'):
             t = self.ts.from_datetimes(datetime_obj)
         else:
@@ -50,6 +29,11 @@ class Astronomy:
         return phase.degrees
 
     def find_observer(self, lat, lon):
+        '''get astronomy format for the observer position
+
+        lat: latitude
+        lon: longitude
+        '''
         N = sf.N if lat > 0 else sf.S
         E = sf.E if lon > 0 else sf.W
         lat = abs(lat)
@@ -57,7 +41,17 @@ class Astronomy:
 
         return self.eph["Earth"] + sf.wgs84.latlon(lat * N, lon * E)
 
-    def find_suntimes(self, lat, lon, datetimes, tz=None, func=almanac.find_settings):
+    def find_suntimes(self, lat, lon, datetimes, tz=None, func=almanac.find_settings) -> pd.Series:
+        '''finds the times of sun events for a series of datetimes at a given location
+
+        lat: latitude
+        lon: longitude
+        datetimes: list of datetimes
+        tz: timezone
+        func: which events function to use. defaults to almanac.find_settings (to find sunsets).
+
+        returns: times of relevant events
+        '''
         sun = self.eph['Sun']
         observer = self.find_observer(lat, lon)
         start = self.ts.utc(datetimes.min() - timedelta(1))
@@ -74,12 +68,19 @@ class Astronomy:
         return event_times
 
     def find_closest(self, event_times, datetimes):
+        '''find the closest sun events for a given series of datetimes'''
         get_closest_time = partial(self.get_closest_time, event_times)
         expanded = datetimes.apply(get_closest_time)
 
         return expanded
 
     def get_closest_time(self, transition_times, sample_time):
+        '''find the closest sun transition for a given time
+
+        transition times: list of the transition times
+        sample_time: the time to find the closest transition to
+
+        '''
         abs_diffs = abs(transition_times - sample_time)
         return transition_times[abs_diffs.idxmin()]
 

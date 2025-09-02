@@ -1,6 +1,4 @@
-import numpy as np
 import pandas as pd
-import json
 from datetime import datetime
 from overrides import overrides
 from zoneinfo import ZoneInfo
@@ -12,15 +10,12 @@ class KeppelMiddleIsland(BaseLocation):
 
     @classmethod
     @overrides
-    def harmonic_constants(cls):
-        fl = "data/keppel.json"
-        data = json.load(fl)
+    def tide_data(cls, year:int) -> pd.DataFrame:
+        '''load tide data for a given year
 
-        return data
+        year: which year to load
 
-    @classmethod
-    @overrides
-    def tide_data(cls, year):
+        '''
         def format_time(row):
             temp = row["Date"] + row["Time"]
             return datetime.strptime(temp, "%d/%m/%Y%H:%M").replace(tzinfo=ZoneInfo('Australia/Brisbane'))

@@ -1,4 +1,4 @@
-import os, sys
+import os
 if __name__ == "__main__":
 
     path = os.path.dirname(os.path.abspath(__file__))

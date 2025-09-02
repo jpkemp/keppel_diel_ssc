@@ -1,5 +1,6 @@
 import re
 from collections import Counter
+from typing import Callable
 from functools import partial
 import pandas as pd
 from sklearn.metrics import f1_score
@@ -9,7 +10,16 @@ from tools.ml import pca_nd
 from matplotlib.cm import tab20
 from tools.plots import Plots
 
-def set_x_markers(scale, fig, ax, lgd=None):
+def set_x_markers(scale:tuple, fig, ax, lgd=None) -> tuple:
+    '''callback function for setting figure axes
+
+    scale: (min, max) y axis limits
+    fig: matplotlib figure object
+    ax: the axes to set
+    lgd: legend object for passthrough only
+
+    returns: figure, axes, legend
+    '''
     ticks = [0, 5, 10, 15, 20]
     tick_labs = ["Solar midnight", "Sunrise", "Solar midday", "Sunset", "Solar midnight"]
     ax.set_xticks(ticks, labels=tick_labs)
@@ -18,7 +28,16 @@ def set_x_markers(scale, fig, ax, lgd=None):
 
     return fig, ax, lgd
 
-def plot_day_percentiles(site_data, metrics, fltr, site, xcallback, scale):
+def plot_day_percentiles(site_data:pd.DataFrame, metrics:list, fltr:str, site:str, xcallback:Callable, scale:dict) -> None:
+    '''produce percentile plots of daily metrics, intended to be per-site
+
+    site_data: the dataframe for the site
+    metrics: which metrics to produce plots for
+    fltr: the name of the filter band
+    site: the name of the site
+    xcallback: callback function to pass to the plotting function
+    scale: dictionary of maximum values for each metric, can be used for scaling across multiple plots
+    '''
     grouping_var = 'scaled_group'
     site_data = site_data.sort_values(grouping_var)
     group = site_data.groupby(grouping_var)
@@ -46,7 +65,11 @@ def plot_day_percentiles(site_data, metrics, fltr, site, xcallback, scale):
         Plots.multiline_scatter_plot(x, list(metric_results.values()), ("Hours from closest transition", metric),
             percentiles, f"{fltr}_{metric}_{site}", "", callback=callback, legend_title="Percentiles")
 
-def get_habitat_cover():
+def get_habitat_cover() -> pd.DataFrame:
+    '''loads the habitat data from file
+
+    returns: dataframe with habitat information
+    '''
     col = "point_human_group_code"
     raw_benthic = pd.read_excel('data/benthic_wcp.xlsx')
     groups = raw_benthic.groupby(['site_name', 'survey_title'])
@@ -55,7 +78,11 @@ def get_habitat_cover():
     df["month"] = df["survey_title"].apply(lambda x: date_map[x.split(' ')[0]])
     df = df.pivot_table('proportion', ['site_name', 'month'], col).reset_index().fillna(0)
     df = df[df["month"] == "02"]
-    habitat_pca, _, _ = pca_nd(df.drop(['site_name', 'month'], axis=1), 1)
+    habitat_cols = df.drop(['site_name', 'month'], axis=1)
+    habitat_pca, weights, variance = pca_nd(habitat_cols, 1)
+    weights = pd.DataFrame(weights, columns=habitat_cols.columns)
+    weights.to_csv("output/habitat_pca_weights")
+    print(f"Habitat PCA explained variance: {variance}")
     habitat = pd.Series(habitat_pca.squeeze())
     habitat.index = df["site_name"].apply(lambda x: benthic_site_map[x])
     habitat.name = "algae_cover"
@@ -63,6 +90,8 @@ def get_habitat_cover():
     return habitat
 
 def get_daily_metrics(data, metrics):
+    '''
+    '''
     daily_metrics = {metric: [] for metric in metrics}
     labels = {metric: [] for metric in metrics}
     data["day"] = data["datetime"].dt.floor('d')
@@ -115,9 +144,11 @@ def write_rules(rules, name):
     with open(path, 'w') as f:
         f.write(rules)
 
+def normalise(minimum, maximum, x):
+    return 2 * (x - minimum)/(maximum-minimum) - 1
+
 def pca_plot(data, labels, name, color_by_site=True):
-    normalized_df=(data - data.min()) / (data.max() - data.min()).astype(float)
-    pca, weights, variance = pca_nd(normalized_df, 2)
+    pca, weights, variance = pca_nd(data, 2)
     print(f"Variance for {name}: {variance}")
     pca = pd.DataFrame(pca)
     weights = pd.DataFrame(weights)
@@ -130,8 +161,10 @@ def pca_plot(data, labels, name, color_by_site=True):
         cbars = None
     else:
         habitat = get_habitat_cover()
-        assert min(habitat) >= -1 and min(habitat) < 0 and max(habitat) > 0 and max(habitat) <= 1
-        colors = labels.apply(lambda x: Plots.blue_fader(habitat[soundscape_sites[x]]))
+        hab_min = habitat.min()
+        hab_max = habitat.max()
+        # assert min(habitat) >= -1 and min(habitat) < 0 and max(habitat) > 0 and max(habitat) <= 1
+        colors = labels.apply(lambda x: Plots.blue_fader(normalise(hab_min, hab_max, habitat[soundscape_sites[x]])))
         col_example_mixes = [0.05 * x for x in range(-20, 21)]
         index_vals = [x / 2 + 0.5 for x in col_example_mixes]
         cbars = []

@@ -28,6 +28,11 @@ class BaseLocation(ABC):
 
     @classmethod
     def localise_time_series(cls, srs, tz):
+        '''convert datetime timezones
+
+        srs: pd.Series with datetimes
+        tz: timezone to convert to
+        '''
         if srs.dt.tz is None:
             result = srs.dt.tz_localize(tz)
         else:
