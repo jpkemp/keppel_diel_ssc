@@ -5,7 +5,7 @@ from functools import partial
 import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.tree import DecisionTreeClassifier, export_text
-from tools.definitions import partial_metrics, soundscape_sites, benthic_site_map
+from tools.definitions import partial_metrics, full_metrics, soundscape_sites, benthic_site_map
 from tools.ml import pca_nd
 from matplotlib.cm import tab20
 from tools.plots import Plots
@@ -41,6 +41,7 @@ def plot_day_percentiles(site_data:pd.DataFrame, metrics:list, fltr:str, site:st
     grouping_var = 'scaled_group'
     site_data = site_data.sort_values(grouping_var)
     group = site_data.groupby(grouping_var)
+    ret = {}
     for metric in metrics:
         callback = partial(xcallback, scale[metric])
         metric_results = {0.05: None, 0.1: None, 0.25: None, 0.5: None, 0.75: None, 0.9: None, 0.95: None, "Mean": None}
@@ -65,6 +66,12 @@ def plot_day_percentiles(site_data:pd.DataFrame, metrics:list, fltr:str, site:st
         Plots.multiline_scatter_plot(x, list(metric_results.values()), ("Hours from closest transition", metric),
             percentiles, f"{fltr}_{metric}_{site}", "", callback=callback, legend_title="Percentiles")
 
+        rng = (pd.Series(metric_results[0.95]) - pd.Series(metric_results["Mean"])) - (pd.Series(metric_results[0.05]) - pd.Series(metric_results["Mean"]))
+        ret[metric] = (pd.Series(metric_results["Mean"]), rng)
+
+    return ret
+
+
 def get_habitat_cover() -> pd.DataFrame:
     '''loads the habitat data from file
 
@@ -81,7 +88,7 @@ def get_habitat_cover() -> pd.DataFrame:
     habitat_cols = df.drop(['site_name', 'month'], axis=1)
     habitat_pca, weights, variance = pca_nd(habitat_cols, 1)
     weights = pd.DataFrame(weights, columns=habitat_cols.columns)
-    weights.to_csv("output/habitat_pca_weights")
+    weights.to_csv("output/habitat_pca_weights.csv")
     print(f"Habitat PCA explained variance: {variance}")
     habitat = pd.Series(habitat_pca.squeeze())
     habitat.index = df["site_name"].apply(lambda x: benthic_site_map[x])
@@ -163,7 +170,6 @@ def pca_plot(data, labels, name, color_by_site=True):
         habitat = get_habitat_cover()
         hab_min = habitat.min()
         hab_max = habitat.max()
-        # assert min(habitat) >= -1 and min(habitat) < 0 and max(habitat) > 0 and max(habitat) <= 1
         colors = labels.apply(lambda x: Plots.blue_fader(normalise(hab_min, hab_max, habitat[soundscape_sites[x]])))
         col_example_mixes = [0.05 * x for x in range(-20, 21)]
         index_vals = [x / 2 + 0.5 for x in col_example_mixes]
@@ -199,10 +205,27 @@ def write_metric_rule_counts(typ, counts):
             f.write(ln)
 
 def get_site_metrics(data, fltr, x_callback, axis_ranges):
+    site_results = {}
     for site, site_data in data.groupby('soundtrap'):
-        plot_day_percentiles(site_data, partial_metrics, fltr, site, x_callback, axis_ranges)
+        results = plot_day_percentiles(site_data, partial_metrics, fltr, site, x_callback, axis_ranges)
         par_data = site_data.dropna()
-        plot_day_percentiles(par_data, ['D'], fltr, site, x_callback, axis_ranges)
+        d_results = plot_day_percentiles(par_data, ['D'], fltr, site, x_callback, axis_ranges)
+        results['D'] = d_results['D']
+        site_results[site] = results
+
+    for metric in full_metrics:
+        means = [x[metric][0] for x in site_results.values()]
+        means_df = pd.concat(means, axis=1)
+        mean_range = means_df.apply(lambda x: x.max() - x.min(), axis=1)
+        ranges = [x[metric][1] for x in site_results.values()]
+        ranges_df = pd.concat(ranges, axis=1)
+        mean_of_ranges = ranges_df.apply(lambda x: x.max() - x.min(), axis=1)
+
+        proportion = mean_of_ranges / mean_range
+        proportion.to_csv(f"output/between_within_{fltr}_{metric}.csv")
+
+        print(f"Proportion of mean of ranges to range of means for {metric}: {proportion}")
+
 
 def get_dailies_for_all_metrics(data):
     daily_metrics, labels = get_daily_metrics(data, partial_metrics)
