@@ -53,7 +53,7 @@ class Plots:
     @classmethod
     def scatter_plot(cls, x, y, labels, output_path, title=None, lines=False,
                         legend=None, color=None, date_axis=False, partial_legend_colours=None,
-                        colbar=None, alpha=1) -> None:
+                        colbar=None, alpha=1, sort_lgd=True) -> None:
         '''Create a scatter plot.
 
         x: data for the x axis
@@ -68,10 +68,12 @@ class Plots:
         partial_legend_colours: used to create a legend with only some classes shown
         colbar: if the legend should be a colour bar instead of class labels, pass in the data to be used
         alpha: alpha blending value for the plot
+        sort_lgd: sort legend labels alphabetically
 
         '''
         fig = plt.figure(dpi=300)
         ax = fig.add_subplot(111)
+        lgd = None
         if lines:
             artists = ax.plot(x, y, alpha=alpha)
         elif color is not None:
@@ -122,6 +124,13 @@ class Plots:
             else:
                 extra = create_colbar(colbar, extra)
 
+
+        if lgd is not None and sort_lgd:
+            handles = lgd.legendHandles
+            labels = [x.get_text() for x in lgd.texts]
+            hl = sorted(zip(handles, labels), key=lambda x: x[1])
+            handles_sorted, labels_sorted = zip(*hl)
+            ax.legend(handles_sorted, labels_sorted, title="Legend", loc='center left', bbox_to_anchor=(1,0.5))
 
         cls.save_plt_fig(fig, output_path, bbox_extra_artists=extra, save_pickle=False)
 

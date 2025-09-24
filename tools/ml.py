@@ -10,4 +10,4 @@ def pca_nd(data, n=2):
     weights =  pca.components_
     variance = pca.explained_variance_ratio_
 
-    return output, weights, variance
+    return output, weights, variance, pca

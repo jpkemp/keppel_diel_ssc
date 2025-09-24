@@ -3,6 +3,8 @@ from collections import Counter
 from typing import Callable
 from functools import partial
 import pandas as pd
+import numpy as np
+from sklearn.preprocessing import scale
 from sklearn.metrics import f1_score
 from sklearn.tree import DecisionTreeClassifier, export_text
 from tools.definitions import partial_metrics, full_metrics, soundscape_sites, benthic_site_map
@@ -86,19 +88,20 @@ def get_habitat_cover() -> pd.DataFrame:
     df = df.pivot_table('proportion', ['site_name', 'month'], col).reset_index().fillna(0)
     df = df[df["month"] == "02"]
     habitat_cols = df.drop(['site_name', 'month'], axis=1)
-    habitat_pca, weights, variance = pca_nd(habitat_cols, 1)
+    habitat_pca, weights, variance, _ = pca_nd(habitat_cols, 1)
     weights = pd.DataFrame(weights, columns=habitat_cols.columns)
     weights.to_csv("output/habitat_pca_weights.csv")
     print(f"Habitat PCA explained variance: {variance}")
     habitat = pd.Series(habitat_pca.squeeze())
     habitat.index = df["site_name"].apply(lambda x: benthic_site_map[x])
-    habitat.name = "algae_cover"
+    habitat.name = "habitat_pca"
 
     return habitat
 
 def get_daily_metrics(data, metrics):
     '''
     '''
+    data = data.copy()
     daily_metrics = {metric: [] for metric in metrics}
     labels = {metric: [] for metric in metrics}
     data["day"] = data["datetime"].dt.floor('d')
@@ -118,6 +121,16 @@ def get_daily_metrics(data, metrics):
     labels = {k: pd.Series(v) for k, v in labels.items()}
 
     return daily_metrics, labels
+
+def glmm_model(df, r_link, glmm, metric, band):
+    r_df = r_link.convert_to_rdf(df[[metric, "soundtrap", "scaled_group"]])
+    for col in ["soundtrap", "scaled_group"]:
+        r_link.change_col_to_factor(r_df, col)
+
+    formula = f"{metric} ~ (1|soundtrap*scaled_group)"
+    within_sd, between_sd = glmm.between_within_effects(r_df, f"{metric}_{band}", formula)
+
+    return within_sd, between_sd
 
 def assess_df(df, labels, splitter, name):
     split = splitter.split(df, labels)
@@ -154,8 +167,32 @@ def write_rules(rules, name):
 def normalise(minimum, maximum, x):
     return 2 * (x - minimum)/(maximum-minimum) - 1
 
+def get_centroid(arr):
+    length = arr.shape[0]
+    sum_x = np.sum(arr[:, 0])
+    sum_y = np.sum(arr[:, 1])
+
+    return sum_x/length, sum_y/length
+
+def get_pca_centroids(pca, data, labels):
+    scaled_data = pd.DataFrame(scale(data))
+    df = pd.concat([scaled_data, labels], axis=1)
+    col_list = df.columns.to_list()
+    col_list[-1] = "labels"
+    df.columns = col_list
+    groups = df.groupby("labels")
+    centroids = {}
+    for group, group_data in groups:
+        points = pca.transform(group_data.drop('labels', axis=1))
+        centroid = get_centroid(points)
+        centroids[soundscape_sites[group]] = centroid
+
+    centroids = pd.Series(centroids, name="centroids")
+    centroids = pd.DataFrame(centroids.to_list(), index=centroids.index, columns=["x", "y"])
+    return centroids
+
 def pca_plot(data, labels, name, color_by_site=True):
-    pca, weights, variance = pca_nd(data, 2)
+    pca, weights, variance, model = pca_nd(data, 2)
     print(f"Variance for {name}: {variance}")
     pca = pd.DataFrame(pca)
     weights = pd.DataFrame(weights)
@@ -163,6 +200,8 @@ def pca_plot(data, labels, name, color_by_site=True):
     group_vals = labels.astype("category")
     cat_codes = group_vals.cat.codes
     nunique = group_vals.nunique()
+    centroids = get_pca_centroids(model, data, labels)
+    centroids.to_csv(f"output/centroids_{name}.csv", index_label="site")
     if color_by_site:
         colors = pd.Series([tab20(float(x)/nunique) for x in cat_codes])
         cbars = None
@@ -224,7 +263,7 @@ def get_site_metrics(data, fltr, x_callback, axis_ranges):
         proportion = mean_of_ranges / mean_range
         proportion.to_csv(f"output/between_within_{fltr}_{metric}.csv")
 
-        print(f"Proportion of mean of ranges to range of means for {metric}: {proportion}")
+        print(f"Proportion of mean of ranges to range of means for {metric}:\n{proportion}")
 
 
 def get_dailies_for_all_metrics(data):
