@@ -15,7 +15,7 @@ if __name__ == "__main__":
         expr = f"box*{band}*.png"
         fls = list(input_path.glob(expr))
         fls = [x for x in fls if "Dt" not in str(x) and "Ds" not in str(x)]
-        name = f"{band}_combined.png"
+        name = f"box_{band}_combined.png"
         combine_images(combiner, fls, name)
 
     fls = ["invertebrate_D_7252", "invertebrate_acorr3_7257"]

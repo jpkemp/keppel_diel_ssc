@@ -36,22 +36,31 @@ def create_maps():
     locs = data.groupby(["location", "site_names"]).size().reset_index()
     site_colours, labels = get_site_colours(data)
     habitat_colours = get_habitat_colours(locs["site_names"])
-    for colours, title in [(site_colours, "site"), (habitat_colours, "habitat")]:
+    # for colours, title in [(site_colours, "site"), (habitat_colours, "habitat")]:
+    for colours, title in [(site_colours, "site")]:
         keppel = mc.get_keppel_shape()
         fig, ax = mc.plot_map_data(keppel)
         ax.ticklabel_format(axis='x', scilimits=(0,0))
         ax.set_xlabel("Longitude", fontsize=18)
         ax.set_ylabel("Latitude", fontsize=18)
         xy = pd.DataFrame(locs["location"].tolist(), index=locs["site_names"])
-        xy.columns = ["x", "y"]
-        mc.add_annotations_to_map_plot(ax, xy.y, xy.x, keppel.crs, colours)
+        xy.columns = ["Lat", "Lon"]
+        mc.add_annotations_to_map_plot(ax, xy, keppel.crs, colours)
         if len(colours) <= 11:
             lgd_keys = {locs["site_names"][x]: v for x, v in colours.items()}
         else:
             lgd_keys = {soundscape_sites[labels[i]]: v for  i, v in enumerate(colours)}
 
         mc.create_map_legend(ax, lgd_keys)
-        Plots.save_plt_fig(fig, f"keppel_map_{title}")
+        Plots.save_plt_fig(fig, f"keppel_map_{title}", save_pickle=False)
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        sat_fig, sat_ax = mc.plot_satellite_map(keppel, xy, colours, xlim=xlim, ylim=ylim)
+        coords = mc.create_bounding_box(*xlim, *ylim, modifier=1)
+        subbox = mc.create_bounding_box(*xlim, *ylim, modifier=0)
+        mc.add_australia_inset(sat_ax, coords, subbox)
+        mc.create_map_legend(sat_ax, lgd_keys, marker='x', marker_size=15)
+        Plots.save_plt_fig(sat_fig, f"keppel_sat_map_{title}", save_pickle=False)
 
 if __name__ == "__main__":
     create_maps()
