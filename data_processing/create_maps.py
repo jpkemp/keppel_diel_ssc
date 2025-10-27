@@ -36,8 +36,7 @@ def create_maps():
     locs = data.groupby(["location", "site_names"]).size().reset_index()
     site_colours, labels = get_site_colours(data)
     habitat_colours = get_habitat_colours(locs["site_names"])
-    # for colours, title in [(site_colours, "site"), (habitat_colours, "habitat")]:
-    for colours, title in [(site_colours, "site")]:
+    for colours, title in [(site_colours, "site"), (habitat_colours, "habitat")]:
         keppel = mc.get_keppel_shape()
         fig, ax = mc.plot_map_data(keppel)
         ax.ticklabel_format(axis='x', scilimits=(0,0))

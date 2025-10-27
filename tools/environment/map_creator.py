@@ -74,7 +74,8 @@ def plot_satellite_map(map_data:pd.DataFrame, lat_lon, colour, title=None, scale
         if lim_vals is not None:
             lim_fun(lim_vals)
 
-    cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs, attribution="")
+    # cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs, attribution="")
+    cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs)
     fig = ax.get_figure()
     fig.set_dpi(300)
     if title is not None:
@@ -86,15 +87,10 @@ def add_annotations_to_map_plot(ax, lat_lon, crs, color, scale=5):
     points = convert_lat_lon_to_markers(lat_lon, crs)
     points.plot(ax=ax, marker='o', c=color, markersize=6*scale)
 
-def plot_to_inset(ax, shape, size, draw_bounding_box, drop_margins=False):
-    fig = ax.get_figure()
-    fig.set_constrained_layout(False)
+def plot_to_inset(ax, shape, size, draw_bounding_box, drop_margins=True):
     inset = ax.inset_axes(size)
     shape.plot(ax=inset, color='tab:brown', linewidth=0, edgecolor='b')
     inset.set_facecolor('b')
-    pos = inset.get_position()
-    bbox = Bbox.from_bounds(1-pos.width, 1-pos.height, pos.width, pos.height)
-    inset.set_position([bbox.x0, bbox.y0, bbox.width, bbox.height])
     for markers in (inset.get_xaxis(), inset.get_yaxis()):
         markers.set_visible(False)
 
@@ -127,7 +123,7 @@ def add_australia_inset(ax, box_location=None, subbox=None):
     small_inset_coords = (0.5, 0.53, 0.5, 0.5)
     big_australia = get_australia_shape(Shapefiles.high_res)
     subset = clip_shape(big_australia, box_location, big_australia.crs)
-    inset = plot_to_inset(ax, subset, large_inset_coords, subbox, drop_margins=True)
+    inset = plot_to_inset(ax, subset, large_inset_coords, subbox)
     plot_to_inset(inset, australia, small_inset_coords, box_location)
 
 def create_map_legend(ax, label_colors:dict, marker='o', marker_size=5):
