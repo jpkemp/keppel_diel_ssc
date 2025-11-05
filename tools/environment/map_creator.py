@@ -74,8 +74,8 @@ def plot_satellite_map(map_data:pd.DataFrame, lat_lon, colour, title=None, scale
         if lim_vals is not None:
             lim_fun(lim_vals)
 
-    # cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs, attribution="")
-    cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs)
+    cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs, attribution="")
+    # cx.add_basemap(ax, source=cx.providers.Esri.WorldImagery, crs=map_data.crs)
     fig = ax.get_figure()
     fig.set_dpi(300)
     if title is not None:
@@ -133,7 +133,7 @@ def create_map_legend(ax, label_colors:dict, marker='o', marker_size=5):
                                    markerfacecolor=colour, markeredgecolor=colour, linestyle='None'))
 
     lgd = ax.legend(custom_lines, list(label_colors.keys()))
-    handles = lgd.legendHandles
+    handles = lgd.legend_handles
     labels = [x.get_text() for x in lgd.texts]
     hl = sorted(zip(handles, labels), key=lambda x: x[1])
     handles_sorted, labels_sorted = zip(*hl)

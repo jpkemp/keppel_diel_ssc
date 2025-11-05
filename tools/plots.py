@@ -126,7 +126,7 @@ class Plots:
 
 
         if lgd is not None and sort_lgd:
-            handles = lgd.legendHandles
+            handles = lgd.legend_handles
             labels = [x.get_text() for x in lgd.texts]
             hl = sorted(zip(handles, labels), key=lambda x: x[1])
             handles_sorted, labels_sorted = zip(*hl)

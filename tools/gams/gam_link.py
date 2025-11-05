@@ -18,9 +18,9 @@ class GamLink(rPlotter):
 
         return f"{r_str}=c({joined_vars}),"
 
-    def generate_gam_model_code(self, output_var, predictors, factor_vars, cyclic_vars, random_effects):
-        form_re = " + " + " + ".join([f"s({x}, bs='re', k=5)" for x in random_effects]) if random_effects else ""
-        formula_string = f"{output_var} ~ s({predictors[0]}, bs='cr', k=5)" + form_re
+    def generate_gam_model_code(self, output_var, predictors, factor_vars, cyclic_vars, random_effects, k=5):
+        form_re = " + " + " + ".join([f"s({x}, bs='re', k={k})" for x in random_effects]) if random_effects else ""
+        formula_string = f"{output_var} ~ s({predictors[0]}, bs='cr', k={k})" + form_re
         n_predictors = min(len(predictors) + len(factor_vars), 5)
         predictors = self._process_var_list(predictors, "pred.vars.cont")
         factor_vars = self._process_var_list(factor_vars, "pred.vars.fact")
@@ -34,14 +34,14 @@ class GamLink(rPlotter):
                 f"{factor_vars}"
                 f"{cyclic_vars}"
                 f"{random_effects}"
-                "k=5,"
+                f"k={k},"
                 "factor.smooth.interactions=T,"
                 "smooth.smooth.interactions=T)"
         )
 
-    def fss_gam(self, data, output_var, continuous_vars, factor_vars, cyclic_vars, random_effects, name):
+    def fss_gam(self, data, output_var, continuous_vars, factor_vars, cyclic_vars, random_effects, name, k=5):
         self.gam.assign_data_to_parent_env(data)
-        gam_code = self.generate_gam_model_code(output_var, continuous_vars, factor_vars, cyclic_vars, random_effects)
+        gam_code = self.generate_gam_model_code(output_var, continuous_vars, factor_vars, cyclic_vars, random_effects, k=k)
         self.log(gam_code)
         rcode(gam_code)
         for factor in factor_vars:

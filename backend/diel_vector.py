@@ -195,6 +195,10 @@ def pca_plot(data, labels, name, color_by_site=True):
     pca, weights, variance, model = pca_nd(data, 2)
     print(f"Variance for {name}: {variance}")
     pca = pd.DataFrame(pca)
+    pca_out= pd.concat([pca, labels], axis=1)
+    pca_out.columns = [["PCA1", "PCA2", "Site"]]
+    # pca_out.index.name="pca_index"
+    pca_out.to_csv(f"output/pca_points_{name}.csv")
     weights = pd.DataFrame(weights)
     weights.to_csv(f"output/pca_weights_{name}.csv")
     group_vals = labels.astype("category")
