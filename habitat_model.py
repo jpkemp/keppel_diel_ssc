@@ -22,7 +22,7 @@ def get_proportional_habitat_cover() -> pd.DataFrame:
     habitat_cols.index = pivoted["site_name"].apply(lambda x: benthic_site_map[x])
     habitat_cols["O"] = habitat_cols[merge].sum(axis=1)
 
-    return habitat_cols.drop(merge, axis=1).map(lambda x: 1e5 if not x else x)
+    return habitat_cols.drop(merge, axis=1).map(lambda x: 1e-5 if not x else x)
 
 def get_habitat_log_ratios(): # this is not generalisable because dataset knowledge is used
     habitat_data = get_proportional_habitat_cover()
@@ -53,18 +53,12 @@ def load_pca_points(band):
 
 def get_measurement_error(pcas:pd.DataFrame):
     groups = pcas.groupby('Site')
-    ses =  groups.sem()
     stds = groups.std()
     means = groups.mean()
     dfs = []
     for dim in ["PCA1","PCA2"]:
         # ses_dim = ses[dim]
-        ses_dim = stds[dim]
-        means_dim = means[dim]
-        std = pcas[dim].std()
-        obs = (means_dim - pcas[dim].mean()) / std
-        sd = ses_dim / std
-        out = pd.concat([obs, sd], axis=1).reset_index()
+        out = pd.concat([means[dim], stds[dim]], axis=1).reset_index()
         out.columns = ["site", f"obs{dim}", f"sd{dim}"]
         dfs.append(out)
 
@@ -85,11 +79,19 @@ def generate_effects_plot(r_link:GamLink, model, effects, title, plot_points=Tru
     for i in range(len(obj)):
         r_link.gr_plot(f"{filename}_cond_effects_{i}.png", obj[i])
 
+    for resp in ["HC", "MA"]:
+        dens = glms.pp_check(model, resp) # should potentially use full pca dataset instead of mean points
+        r_link.gr_plot(f"{filename}_density_overlay_{resp}.png", dens)
+
+        scat = glms.pp_check(model, resp, "scatter_avg")
+        r_link.gr_plot(f"{filename}_scatter_avg_{resp}.png", scat)
+
 if __name__ == "__main__":
     r_link = GamLink()
     glms = r_link.load_src("tools/gams/brms_models.R")
     settlement_data = create_settlement_data()
     lrs = get_habitat_log_ratios()
+    priors = rcode("c(brms::set_prior('normal(0,10)', class='b', resp = c('HC', 'MA')))")
     for band in ["broad", "fish", "invertebrate"]:
         pca_points = load_pca_points(band)
         me = get_measurement_error(pca_points)
@@ -101,7 +103,7 @@ if __name__ == "__main__":
         formula_str += "+ brms::set_rescor(FALSE)"
         formula = rcode(formula_str)
         family = "gaussian"
-        model = glms.generate_brms_model(rdf, formula, family, f"output/{band}_mi_model.RData")
+        model = glms.generate_brms_model(rdf, formula, family, f"output/{band}_mi_model.RData", prior=priors)
         effects = glms.conditional_effects(model)
         generate_effects_plot(r_link, model, effects, f"{band}_mv")
 

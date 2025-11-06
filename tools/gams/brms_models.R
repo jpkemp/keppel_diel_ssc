@@ -9,12 +9,13 @@ get_family <- function(family, link = "logit") {
 }
 
 generate_brms_model <- function(data, formula, family, file_path, iter = 3000,
-                                warmup = 2000, cores = 5, chains = 5) {
+                                warmup = 2000, cores = 5, chains = 5, prior=NULL) {
   save(data, file=file_path)
   family_inst <- get_family(family)
   # formula <- as.formula(formula)
   model <- brms::brm(formula,
     data = data,
+    prior=prior,
     family = family_inst,
     iter = iter,
     warmup = warmup,
@@ -45,3 +46,7 @@ conditional_effects <- function(model) {
   return(effects)
 }
 
+
+pp_check <- function(model, resp, type="dens_overlay") {
+  return(brms::pp_check(model, type=type, resp=resp))
+}
