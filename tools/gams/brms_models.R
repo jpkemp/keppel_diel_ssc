@@ -41,12 +41,18 @@ between_within_effects <- function(data, name, formula) {
   return(ret)
 }
 
-conditional_effects <- function(model) {
-  effects <- brms::conditional_effects(model)
+conditional_effects <- function(model, resp=NULL) {
+  effects <- brms::conditional_effects(model, resp=resp)
   return(effects)
 }
 
 
 pp_check <- function(model, resp, type="dens_overlay") {
   return(brms::pp_check(model, type=type, resp=resp))
+}
+
+check_hypothesis <- function(model, hypothesis, class = "b") {
+  hyp <- brms::hypothesis(model, hypothesis, class = class)
+  starred <- hyp$hypothesis$Star
+  return(starred)
 }
