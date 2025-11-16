@@ -6,17 +6,16 @@ get_family <- function(family, link = "logit") {
   if (family == "beta") return(brms::Beta())
   if (family == "logit_normal") return(brms::logistic_normal())
   if (family == "zero_beta") return(brms::zero_inflated_beta())
+  if (family == "skew_normal") return(brms::skew_normal())
+  if (family == "lognormal") return(brms::lognormal())
 }
 
-generate_brms_model <- function(data, formula, family, file_path, iter = 3000,
+generate_brms_model <- function(data, formula, file_path, iter = 3000,
                                 warmup = 2000, cores = 5, chains = 5, prior=NULL) {
   save(data, file=file_path)
-  family_inst <- get_family(family)
-  # formula <- as.formula(formula)
   model <- brms::brm(formula,
     data = data,
     prior=prior,
-    family = family_inst,
     iter = iter,
     warmup = warmup,
     cores = cores,
@@ -48,7 +47,7 @@ conditional_effects <- function(model, resp=NULL) {
 
 
 pp_check <- function(model, resp, type="dens_overlay") {
-  return(brms::pp_check(model, type=type, resp=resp))
+  return(brms::pp_check(model, type=type, resp=resp, ndraws=1000))
 }
 
 check_hypothesis <- function(model, hypothesis, class = "b") {

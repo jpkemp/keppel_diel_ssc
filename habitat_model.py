@@ -34,13 +34,16 @@ def get_habitat_log_ratios(): # this is not generalisable because dataset knowle
 
     return log_ratios
 
-def create_settlement_data():
-    settlement = [21.75, 49.41667, 14.83333, 20.08333, 31.25, 3.583333, 90.91667, 12.72727, 7.5, 25.25, NaN] # %s?
-    settlement_order = ["Mazie site 2", "Mazie Taylors", "Shelving site 1", "Middle Taylor", "Monkey Taylor", "Halfway", "Miall Taylor", "Clam Bay", "Humpy", "Home Cathie", "Home Taylor"]
-    settlement = pd.Series(settlement) / 100
-    settlement.index = settlement_order
+def get_settlement_data():
+    raw_data = pd.read_excel('data/coral_wcp.xlsx')
+    required = raw_data[raw_data["year_num"]==4]
+    required_sites = required[required["site_James"]!="na"]
+    required_sites["log_settlers"] = required_sites["total_settlers"].apply(lambda x: log(x + 1))
+    data = required_sites.groupby("site_James")["settlers_per_m2"].agg(["mean", "std"])
+    data.index = data.index.to_series().apply(lambda x: benthic_site_map[x])
+    data.columns = ["settlement", "sdsettlement"]
 
-    return settlement.sort_index()
+    return data
 
 def load_pca_points(band):
     return pd.read_csv(f"output/pca_points_{band}_combined.csv").drop("Unnamed: 0", axis=1)
@@ -97,32 +100,60 @@ def check_normality(data, effects):
     for effect in effects:
         assert anderson(data[effect]).fit_result.success
 
+def model_checks(r_link, model, responses, effect_names):
+    generate_pp_checks(r_link, model, f"{band}_mv", responses)
+    usable_predictors = hypothesis_checks(glms, model, responses, effect_names)
+    tbl = pd.DataFrame(usable_predictors)
+    tbl.to_csv(f"output/{band}_mi_{responses}_starred.csv")
+
+def generate_formula(response, multi_response=True):
+    if multi_response:
+        formula_str = f"brms::bf(brms::mvbind({','.join(response)}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=brms::skew_normal)"
+    else:
+        # formula_str = f"brms::bf({response} ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=Gamma(link=log))"
+        formula_str = f"brms::bf({response} | mi(sd{response}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=brms::lognormal)"
+        # formula_str = f"brms::bf({response} | mi(sd{response}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=gaussian)"
+
+    formula_str += f"+ brms::bf(PCA1 | mi(sdPCA1) ~ 0 + Intercept, family=gaussian)"
+    formula_str += f"+ brms::bf(PCA2 | mi(sdPCA2) ~ 0 + Intercept, family=gaussian)"
+    formula_str += "+ brms::set_rescor(FALSE)"
+    formula = rcode(formula_str)
+
+    return formula
+
 if __name__ == "__main__":
     r_link = GamLink()
     glms = r_link.load_src("tools/gams/brms_models.R")
-    settlement_data = create_settlement_data()
     lrs = get_habitat_log_ratios()
-    priors = rcode("c(brms::set_prior('normal(0,10)', class='b', resp = c('HC', 'MA')))")
-    effects = ["PCA1", "PCA2"]
+    # priors = rcode("c(brms::set_prior('normal(0,10)', class='b', resp = c('HC', 'MA')")
+    effect_names = ["PCA1", "PCA2"]
     responses = ["HC", "MA"]
-    for band in ["broad", "fish", "invertebrate"]:
+    bands = ["broad", "fish", "invertebrate"]
+    settlement_data = get_settlement_data()
+    for band in bands:
         pca_points = load_pca_points(band)
-        check_normality(pca_points, effects)
+        check_normality(pca_points, effect_names)
         me = get_measurement_error(pca_points)
+
+        # habitat
         data = lrs.join(me)
         rdf = r_link.convert_to_rdf(data)
-        formula_str = f"brms::bf(brms::mvbind({','.join(lrs.columns)}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2))"
-        formula_str += f"+ brms::bf(PCA1 | mi(sdPCA1) ~ 0 + Intercept)"
-        formula_str += f"+ brms::bf(PCA2 | mi(sdPCA2) ~ 0 + Intercept)"
-        formula_str += "+ brms::set_rescor(FALSE)"
-        formula = rcode(formula_str)
-        family = "gaussian"
-        model = glms.generate_brms_model(rdf, formula, family, f"output/{band}_mi_model.RData", prior=priors)
+        formula = generate_formula(lrs.columns)
+        # model = glms.generate_brms_model(rdf, formula, family, f"output/{band}_mi_mv_model.RData", prior=priors)
+        model = glms.generate_brms_model(rdf, formula, f"output/{band}_mi_mv_model.RData")
         for response in responses:
             effects = glms.conditional_effects(model, response)
             generate_effects_plot(r_link, model, effects, f"{band}_{response}_mv")
-            generate_pp_checks(r_link, model, f"{band}_{response}_mv", responses)
 
-        usable_predictors = hypothesis_checks(glms, model, responses, effects)
-        tbl = pd.DataFrame(usable_predictors)
-        tbl.to_csv(f"output/{band}_mi_starred.csv")
+        model_checks(r_link, model, responses, effect_names)
+
+        # settlement
+        data = me.drop("Home Taylor")
+        data = data.join(settlement_data)
+        rdf = r_link.convert_to_rdf(data)
+        formula = generate_formula("settlement", False)
+        model = glms.generate_brms_model(rdf, formula, f"output/{band}_mi_settlement_model.RData")
+        effects = glms.conditional_effects(model, "settlement")
+        generate_effects_plot(r_link, model, effects, f"{band}_mi_settlement")
+        effect_names = ["PCA1", "PCA2"]
+        model_checks(r_link, model, ["settlement"], effect_names)
