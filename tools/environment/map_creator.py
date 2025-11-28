@@ -70,6 +70,8 @@ def convert_lat_lon_to_markers(lat_lon, crs):
 def plot_satellite_map(map_data:pd.DataFrame, lat_lon, colour, title=None, scale_fig=3, xlim=None, ylim=None):
     points = convert_lat_lon_to_markers(lat_lon, map_data.crs)
     ax = points.plot(figsize=(6.4*scale_fig, 4.8*scale_fig), marker="x", markersize=25*scale_fig, c=colour)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
     for lim_vals, lim_fun in [(xlim, ax.set_xlim), (ylim, ax.set_ylim)]:
         if lim_vals is not None:
             lim_fun(lim_vals)
@@ -89,8 +91,8 @@ def add_annotations_to_map_plot(ax, lat_lon, crs, color, scale=5):
 
 def plot_to_inset(ax, shape, size, draw_bounding_box, drop_margins=True):
     inset = ax.inset_axes(size)
-    shape.plot(ax=inset, color='tab:brown', linewidth=0, edgecolor='b')
-    inset.set_facecolor('b')
+    shape.plot(ax=inset, color='#eee5de', linewidth=0, edgecolor='#eee5de')
+    # inset.set_facecolor('b')
     for markers in (inset.get_xaxis(), inset.get_yaxis()):
         markers.set_visible(False)
 
@@ -137,7 +139,11 @@ def create_map_legend(ax, label_colors:dict, marker='o', marker_size=5):
     labels = [x.get_text() for x in lgd.texts]
     hl = sorted(zip(handles, labels), key=lambda x: x[1])
     handles_sorted, labels_sorted = zip(*hl)
-    ax.legend(handles_sorted, labels_sorted, title="Legend", loc='center right', bbox_to_anchor=(1,0.565),
-              fontsize=10, title_fontsize=12)
+    lgd = ax.legend(handles_sorted, labels_sorted, title="Legend", loc='center right', bbox_to_anchor=(1,0.565),
+              fontsize=10, title_fontsize=12, facecolor="#000000")
+
+    for text in lgd.get_texts():
+        text.set_color("white")
+    lgd.get_title().set_color("white")
 
     return lgd

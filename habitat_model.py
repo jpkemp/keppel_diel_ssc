@@ -1,6 +1,6 @@
 import pandas as pd
 from numpy import NaN, log
-from scipy.stats import anderson
+from scipy.stats import anderson, boxcox
 from rpy2.robjects import r as rcode
 from tools.gams.gam_link import GamLink
 from backend.diel_vector import benthic_site_map, soundscape_sites
@@ -38,8 +38,9 @@ def get_settlement_data():
     raw_data = pd.read_excel('data/coral_wcp.xlsx')
     required = raw_data[raw_data["year_num"]==4]
     required_sites = required[required["site_James"]!="na"]
-    required_sites["log_settlers"] = required_sites["total_settlers"].apply(lambda x: log(x + 1))
-    data = required_sites.groupby("site_James")["settlers_per_m2"].agg(["mean", "std"])
+    # required_sites["log_settlers"] = required_sites["total_settlers"].apply(lambda x: log(x + 1))
+    # data = required_sites.groupby("site_James")["settlers_per_m2"].agg(["mean", "std"])
+    data = required_sites.groupby("site_James")["total_settlers"].agg(["mean", "std"])
     data.index = data.index.to_series().apply(lambda x: benthic_site_map[x])
     data.columns = ["settlement", "sdsettlement"]
 
@@ -110,9 +111,11 @@ def generate_formula(response, multi_response=True):
     if multi_response:
         formula_str = f"brms::bf(brms::mvbind({','.join(response)}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=brms::skew_normal)"
     else:
-        # formula_str = f"brms::bf({response} ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=Gamma(link=log))"
-        formula_str = f"brms::bf({response} | mi(sd{response}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=brms::lognormal)"
+        formula_str = f"brms::bf({response} ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=poisson)"
+        # formula_str = f"brms::bf({response} | mi(sd{response}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=brms::Gamma(link=log))"
+        # formula_str = f"brms::bf({response} | mi(sd{response}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=brms::lognormal)"
         # formula_str = f"brms::bf({response} | mi(sd{response}) ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=gaussian)"
+        # formula_str = f"brms::bf({response} ~ 0 + Intercept + mi(PCA1) + mi(PCA2), family=gaussian)"
 
     formula_str += f"+ brms::bf(PCA1 | mi(sdPCA1) ~ 0 + Intercept, family=gaussian)"
     formula_str += f"+ brms::bf(PCA2 | mi(sdPCA2) ~ 0 + Intercept, family=gaussian)"
@@ -136,16 +139,16 @@ if __name__ == "__main__":
         me = get_measurement_error(pca_points)
 
         # habitat
-        data = lrs.join(me)
-        rdf = r_link.convert_to_rdf(data)
-        formula = generate_formula(lrs.columns)
-        # model = glms.generate_brms_model(rdf, formula, family, f"output/{band}_mi_mv_model.RData", prior=priors)
-        model = glms.generate_brms_model(rdf, formula, f"output/{band}_mi_mv_model.RData")
-        for response in responses:
-            effects = glms.conditional_effects(model, response)
-            generate_effects_plot(r_link, model, effects, f"{band}_{response}_mv")
+        # data = lrs.join(me)
+        # rdf = r_link.convert_to_rdf(data)
+        # formula = generate_formula(lrs.columns)
+        # # model = glms.generate_brms_model(rdf, formula, family, f"output/{band}_mi_mv_model.RData", prior=priors)
+        # model = glms.generate_brms_model(rdf, formula, f"output/{band}_mi_mv_model.RData")
+        # for response in responses:
+        #     effects = glms.conditional_effects(model, response)
+        #     generate_effects_plot(r_link, model, effects, f"{band}_{response}_mv")
 
-        model_checks(r_link, model, responses, effect_names)
+        # model_checks(r_link, model, responses, effect_names)
 
         # settlement
         data = me.drop("Home Taylor")
