@@ -135,7 +135,7 @@ def glmm_model(df, r_link, glmm, metric, band):
 def assess_df(df, labels, splitter, name):
     split = splitter.split(df, labels)
     for train_inds, test_inds in split:
-        tree = DecisionTreeClassifier()
+        tree = DecisionTreeClassifier(random_state=0)
         tree.fit(df.iloc[train_inds], labels.iloc[train_inds])
         preds = tree.predict(df.iloc[test_inds])
         results = pd.DataFrame([labels.iloc[test_inds].values, preds]).transpose()
